@@ -6,4 +6,5 @@ data class CalendarInfo(
     val accountName: String,
     val accountType: String,
     val isPrimary: Boolean,
+    val isWritable: Boolean,
 )

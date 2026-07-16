@@ -5,6 +5,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
+import com.wsamon.schedulephototoecal.ui.calendars.ManageCalendarsScreen
 import com.wsamon.schedulephototoecal.ui.capture.CaptureScreen
 import com.wsamon.schedulephototoecal.ui.processing.ProcessingScreen
 import com.wsamon.schedulephototoecal.ui.result.ResultScreen
@@ -42,6 +43,13 @@ fun ScheduleNavGraph(viewModel: ScheduleImportViewModel) {
                         popUpTo(Routes.CAPTURE)
                     }
                 },
+                onManageCalendars = { navController.navigate(Routes.MANAGE_CALENDARS) },
+            )
+        }
+        composable(Routes.MANAGE_CALENDARS) {
+            ManageCalendarsScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() },
             )
         }
         composable(Routes.RESULT) {

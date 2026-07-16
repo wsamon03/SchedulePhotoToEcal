@@ -9,6 +9,7 @@ import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.wsamon.schedulephototoecal.calendar.AndroidCalendarRepository
 import com.wsamon.schedulephototoecal.calendar.CalendarInfo
+import com.wsamon.schedulephototoecal.calendar.CalendarPreferencesStore
 import com.wsamon.schedulephototoecal.calendar.CalendarRepository
 import com.wsamon.schedulephototoecal.calendar.ImportResult
 import com.wsamon.schedulephototoecal.model.ParseResult
@@ -28,6 +29,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
 
     private val textRecognitionService = TextRecognitionService(application)
     private val calendarRepository: CalendarRepository = AndroidCalendarRepository(application)
+    private val calendarPreferences = CalendarPreferencesStore(application)
 
     var capturedImageUri: Uri? by mutableStateOf(null)
         private set
@@ -41,6 +43,11 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
     var processingError: String? by mutableStateOf(null)
         private set
 
+    /** Every calendar the device knows about, writable or not - backs the manage-calendars screen. */
+    var allCalendars: List<CalendarInfo> by mutableStateOf(emptyList())
+        private set
+
+    /** Writable calendars the user hasn't hidden - backs the "Add to Calendar" picker. */
     var availableCalendars: List<CalendarInfo> by mutableStateOf(emptyList())
         private set
 
@@ -89,10 +96,33 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         editableShifts = editableShifts.map { if (it.id == shiftId) it.copy(included = included) else it }
     }
 
-    fun refreshAvailableCalendars() {
-        availableCalendars = calendarRepository.listWritableCalendars()
-        if (selectedCalendarId == null) {
+    fun refreshCalendars() {
+        allCalendars = calendarRepository.listAllCalendars()
+        recomputeAvailableCalendars()
+        if (selectedCalendarId == null || availableCalendars.none { it.id == selectedCalendarId }) {
             selectedCalendarId = availableCalendars.firstOrNull()?.id
+        }
+    }
+
+    /** Toggles whether a writable calendar shows up in the "Add to Calendar" picker. */
+    fun setCalendarShown(calendarId: Long, shown: Boolean) {
+        val currentlyShown = calendarPreferences.getEnabledCalendarIds()
+            ?: allCalendars.filter { it.isWritable }.map { it.id }.toSet()
+        calendarPreferences.setEnabledCalendarIds(
+            if (shown) currentlyShown + calendarId else currentlyShown - calendarId,
+        )
+        recomputeAvailableCalendars()
+        if (selectedCalendarId != null && availableCalendars.none { it.id == selectedCalendarId }) {
+            selectedCalendarId = availableCalendars.firstOrNull()?.id
+        }
+    }
+
+    fun isCalendarShown(calendarId: Long): Boolean = availableCalendars.any { it.id == calendarId }
+
+    private fun recomputeAvailableCalendars() {
+        val shownIds = calendarPreferences.getEnabledCalendarIds()
+        availableCalendars = allCalendars.filter { calendar ->
+            calendar.isWritable && (shownIds == null || calendar.id in shownIds)
         }
     }
 

@@ -50,6 +50,7 @@ private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a")
 fun ReviewScreen(
     viewModel: ScheduleImportViewModel,
     onImported: () -> Unit,
+    onManageCalendars: () -> Unit,
 ) {
     val context = LocalContext.current
     var calendarPermissionGranted by remember {
@@ -63,7 +64,7 @@ fun ReviewScreen(
     ) { results ->
         calendarPermissionGranted = results.values.all { it }
         if (calendarPermissionGranted) {
-            viewModel.refreshAvailableCalendars()
+            viewModel.refreshCalendars()
         } else {
             permissionDeniedOnce = true
         }
@@ -71,7 +72,7 @@ fun ReviewScreen(
 
     LaunchedEffect(Unit) {
         if (calendarPermissionGranted) {
-            viewModel.refreshAvailableCalendars()
+            viewModel.refreshCalendars()
         } else {
             permissionLauncher.launch(CALENDAR_PERMISSIONS)
         }
@@ -103,16 +104,23 @@ fun ReviewScreen(
                     Text("Grant Calendar Permission")
                 }
             }
-        } else if (viewModel.availableCalendars.isEmpty()) {
+        } else if (viewModel.allCalendars.isEmpty()) {
             Spacer(modifier = Modifier.height(8.dp))
             Text("No calendars were found on this device.")
             Spacer(modifier = Modifier.height(4.dp))
             Button(onClick = { context.startActivity(Intent(Settings.ACTION_ADD_ACCOUNT)) }) {
                 Text("Add an Account")
             }
+        } else if (viewModel.availableCalendars.isEmpty()) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Text("No calendars are shown in the picker. Manage which calendars appear.")
+            Spacer(modifier = Modifier.height(4.dp))
+            Button(onClick = onManageCalendars) {
+                Text("Manage Calendars")
+            }
         } else {
             Spacer(modifier = Modifier.height(8.dp))
-            CalendarPicker(viewModel = viewModel)
+            CalendarPicker(viewModel = viewModel, onManageCalendars = onManageCalendars)
         }
 
         Spacer(modifier = Modifier.height(8.dp))
@@ -157,24 +165,29 @@ fun ReviewScreen(
 }
 
 @Composable
-private fun CalendarPicker(viewModel: ScheduleImportViewModel) {
+private fun CalendarPicker(viewModel: ScheduleImportViewModel, onManageCalendars: () -> Unit) {
     var expanded by remember { mutableStateOf(false) }
     val selected = viewModel.availableCalendars.firstOrNull { it.id == viewModel.selectedCalendarId }
 
-    Box {
-        OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
-            Text(selected?.let { "${it.displayName} (${it.accountName})" } ?: "Select a calendar")
-        }
-        DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            viewModel.availableCalendars.forEach { calendar ->
-                DropdownMenuItem(
-                    text = { Text("${calendar.displayName} (${calendar.accountName})") },
-                    onClick = {
-                        viewModel.selectedCalendarId = calendar.id
-                        expanded = false
-                    },
-                )
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(modifier = Modifier.weight(1f)) {
+            OutlinedButton(onClick = { expanded = true }, modifier = Modifier.fillMaxWidth()) {
+                Text(selected?.let { "${it.displayName} (${it.accountName})" } ?: "Select a calendar")
             }
+            DropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
+                viewModel.availableCalendars.forEach { calendar ->
+                    DropdownMenuItem(
+                        text = { Text("${calendar.displayName} (${calendar.accountName})") },
+                        onClick = {
+                            viewModel.selectedCalendarId = calendar.id
+                            expanded = false
+                        },
+                    )
+                }
+            }
+        }
+        TextButton(onClick = onManageCalendars) {
+            Text("Manage")
         }
     }
 }

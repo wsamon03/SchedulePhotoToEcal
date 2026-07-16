@@ -17,23 +17,22 @@ import java.time.ZoneId
  */
 class AndroidCalendarRepository(private val context: Context) : CalendarRepository {
 
-    override fun listWritableCalendars(): List<CalendarInfo> {
+    override fun listAllCalendars(): List<CalendarInfo> {
         val projection = arrayOf(
             CalendarContract.Calendars._ID,
             CalendarContract.Calendars.CALENDAR_DISPLAY_NAME,
             CalendarContract.Calendars.ACCOUNT_NAME,
             CalendarContract.Calendars.ACCOUNT_TYPE,
             CalendarContract.Calendars.IS_PRIMARY,
+            CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL,
         )
-        val selection = "${CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL} >= ?"
-        val selectionArgs = arrayOf(CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR.toString())
 
         val calendars = mutableListOf<CalendarInfo>()
         context.contentResolver.query(
             CalendarContract.Calendars.CONTENT_URI,
             projection,
-            selection,
-            selectionArgs,
+            null,
+            null,
             null,
         )?.use { cursor ->
             val idIndex = cursor.getColumnIndexOrThrow(CalendarContract.Calendars._ID)
@@ -41,6 +40,7 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
             val accountNameIndex = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.ACCOUNT_NAME)
             val accountTypeIndex = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.ACCOUNT_TYPE)
             val isPrimaryIndex = cursor.getColumnIndex(CalendarContract.Calendars.IS_PRIMARY)
+            val accessLevelIndex = cursor.getColumnIndexOrThrow(CalendarContract.Calendars.CALENDAR_ACCESS_LEVEL)
 
             while (cursor.moveToNext()) {
                 calendars += CalendarInfo(
@@ -49,14 +49,18 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
                     accountName = cursor.getString(accountNameIndex) ?: "",
                     accountType = cursor.getString(accountTypeIndex) ?: "",
                     isPrimary = isPrimaryIndex >= 0 && cursor.getInt(isPrimaryIndex) != 0,
+                    isWritable = cursor.getInt(accessLevelIndex) >= CalendarContract.Calendars.CAL_ACCESS_CONTRIBUTOR,
                 )
             }
         }
 
-        // Google-account calendars sorted first since that's the sync source eCalendar
-        // supports, but every writable calendar is shown - never hardcoded to just Google.
+        // Writable calendars first (only those are actually usable), then Google-account
+        // calendars (the sync source eCalendar supports), then primary, then name. Every
+        // calendar the device knows about is included - read-only ones are shown too so a
+        // shared/subscribed calendar's exclusion from the picker is visible, not silent.
         return calendars.sortedWith(
-            compareByDescending<CalendarInfo> { it.accountType == "com.google" }
+            compareByDescending<CalendarInfo> { it.isWritable }
+                .thenByDescending { it.accountType == "com.google" }
                 .thenByDescending { it.isPrimary }
                 .thenBy { it.displayName },
         )
