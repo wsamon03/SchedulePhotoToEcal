@@ -43,7 +43,7 @@ fun CaptureScreen(
     ) { success ->
         val uri = pendingCameraUri
         if (success && uri != null) {
-            viewModel.setCapturedImageUri(uri)
+            viewModel.startNewImport(uri)
             onImageReady()
         }
     }
@@ -64,7 +64,7 @@ fun CaptureScreen(
         contract = ActivityResultContracts.PickVisualMedia(),
     ) { uri ->
         if (uri != null) {
-            viewModel.setCapturedImageUri(uri)
+            viewModel.startNewImport(uri)
             onImageReady()
         }
     }

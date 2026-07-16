@@ -49,7 +49,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
     var importResult: ImportResult? by mutableStateOf(null)
         private set
 
-    fun setCapturedImageUri(uri: Uri) {
+    fun startNewImport(uri: Uri) {
         capturedImageUri = uri
         parseResult = null
         editableShifts = emptyList()
