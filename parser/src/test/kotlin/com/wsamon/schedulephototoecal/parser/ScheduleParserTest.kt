@@ -1,0 +1,139 @@
+package com.wsamon.schedulephototoecal.parser
+
+import com.google.common.truth.Truth.assertThat
+import com.wsamon.schedulephototoecal.model.ParseConfidence
+import com.wsamon.schedulephototoecal.model.ParseStatus
+import java.time.LocalDate
+import java.time.LocalTime
+import org.junit.Test
+
+class ScheduleParserTest {
+
+    @Test
+    fun `full week example parses all 7 rows with high confidence`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.fullWeekExample())
+
+        assertThat(result.status).isEqualTo(ParseStatus.SUCCESS)
+        assertThat(result.shifts).hasSize(7)
+        assertThat(result.shifts.all { it.confidence == ParseConfidence.HIGH }).isTrue()
+
+        val notScheduled = result.shifts[0]
+        assertThat(notScheduled.date).isEqualTo(LocalDate.of(2026, 7, 11))
+        assertThat(notScheduled.notScheduled).isTrue()
+        assertThat(notScheduled.included).isFalse()
+
+        val sunday = result.shifts[1]
+        assertThat(sunday.date).isEqualTo(LocalDate.of(2026, 7, 12))
+        assertThat(sunday.startTime).isEqualTo(LocalTime.of(16, 0))
+        assertThat(sunday.endTime).isEqualTo(LocalTime.of(23, 0))
+        assertThat(sunday.position).isEqualTo("Grocery Clerk")
+        assertThat(sunday.storeNumber).isEqualTo("1861")
+        assertThat(sunday.included).isTrue()
+
+        val monday = result.shifts[2]
+        assertThat(monday.date).isEqualTo(LocalDate.of(2026, 7, 13))
+        assertThat(monday.startTime).isEqualTo(LocalTime.of(17, 30))
+        assertThat(monday.endTime).isEqualTo(LocalTime.of(21, 30))
+        assertThat(monday.position).isEqualTo("Liquor Clerk")
+        assertThat(monday.storeNumber).isEqualTo("1309")
+
+        val tuesday = result.shifts[3]
+        assertThat(tuesday.date).isEqualTo(LocalDate.of(2026, 7, 14))
+        assertThat(tuesday.startTime).isEqualTo(LocalTime.of(9, 0))
+        assertThat(tuesday.endTime).isEqualTo(LocalTime.of(17, 0))
+
+        val wednesday = result.shifts[4]
+        assertThat(wednesday.date).isEqualTo(LocalDate.of(2026, 7, 15))
+        assertThat(wednesday.startTime).isEqualTo(LocalTime.of(14, 0))
+        assertThat(wednesday.endTime).isEqualTo(LocalTime.of(23, 0))
+
+        val thursday = result.shifts[5]
+        assertThat(thursday.date).isEqualTo(LocalDate.of(2026, 7, 16))
+        assertThat(thursday.startTime).isEqualTo(LocalTime.of(9, 0))
+        assertThat(thursday.endTime).isEqualTo(LocalTime.of(17, 0))
+
+        val friday = result.shifts[6]
+        assertThat(friday.date).isEqualTo(LocalDate.of(2026, 7, 17))
+        assertThat(friday.startTime).isEqualTo(LocalTime.of(17, 30))
+        assertThat(friday.endTime).isEqualTo(LocalTime.of(21, 30))
+        assertThat(friday.position).isEqualTo("Liquor Clerk")
+        assertThat(friday.storeNumber).isEqualTo("1309")
+    }
+
+    @Test
+    fun `warning icon noise on a time line does not break parsing`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.fullWeekExampleWithWarningIconNoise())
+
+        assertThat(result.status).isEqualTo(ParseStatus.SUCCESS)
+        val tuesday = result.shifts[3]
+        assertThat(tuesday.startTime).isEqualTo(LocalTime.of(9, 0))
+        assertThat(tuesday.endTime).isEqualTo(LocalTime.of(17, 0))
+        assertThat(tuesday.confidence).isEqualTo(ParseConfidence.HIGH)
+    }
+
+    @Test
+    fun `overnight shift keeps chronological start and end time`() {
+        // Fixture is a single isolated row (not a realistic full 7-row photo), so it's
+        // correctly reported as PARTIAL - only the parsed time values are under test here.
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.overnightShiftRow())
+
+        assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
+        assertThat(result.shifts).hasSize(1)
+        val shift = result.shifts[0]
+        assertThat(shift.startTime).isEqualTo(LocalTime.of(22, 0))
+        assertThat(shift.endTime).isEqualTo(LocalTime.of(6, 0))
+        assertThat(shift.confidence).isEqualTo(ParseConfidence.HIGH)
+    }
+
+    @Test
+    fun `missing header date is a hard failure and never fabricates dates`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.missingHeaderDate())
+
+        assertThat(result.status).isEqualTo(ParseStatus.NO_HEADER_DATE)
+        assertThat(result.shifts).isEmpty()
+    }
+
+    @Test
+    fun `partial week is reported as PARTIAL but still parses detected rows`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.partialWeek())
+
+        assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
+        assertThat(result.shifts).hasSize(3)
+        assertThat(result.warnings.any { it.contains("Only 3 of 7") }).isTrue()
+    }
+
+    @Test
+    fun `non-schedule photo yields no rows detected`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.nonScheduleImage())
+
+        assertThat(result.status).isEqualTo(ParseStatus.NO_SCHEDULE_DETECTED)
+        assertThat(result.shifts).isEmpty()
+    }
+
+    @Test
+    fun `month and year rollover is handled purely by sequential day increment`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.monthRolloverWeek())
+
+        assertThat(result.status).isEqualTo(ParseStatus.SUCCESS)
+        assertThat(result.shifts.map { it.date }).containsExactly(
+            LocalDate.of(2026, 7, 29),
+            LocalDate.of(2026, 7, 30),
+            LocalDate.of(2026, 7, 31),
+            LocalDate.of(2026, 8, 1),
+            LocalDate.of(2026, 8, 2),
+            LocalDate.of(2026, 8, 3),
+            LocalDate.of(2026, 8, 4),
+        ).inOrder()
+        assertThat(result.shifts.all { it.confidence == ParseConfidence.HIGH }).isTrue()
+    }
+
+    @Test
+    fun `split badge tokens still anchor a row correctly`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.splitBadgeTokens())
+
+        assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
+        assertThat(result.shifts).hasSize(1)
+        assertThat(result.shifts[0].date).isEqualTo(LocalDate.of(2026, 7, 11))
+        assertThat(result.shifts[0].notScheduled).isTrue()
+    }
+}

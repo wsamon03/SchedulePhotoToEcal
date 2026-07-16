@@ -1,0 +1,57 @@
+package com.wsamon.schedulephototoecal.navigation
+
+import androidx.compose.runtime.Composable
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import com.wsamon.schedulephototoecal.ScheduleImportViewModel
+import com.wsamon.schedulephototoecal.ui.capture.CaptureScreen
+import com.wsamon.schedulephototoecal.ui.processing.ProcessingScreen
+import com.wsamon.schedulephototoecal.ui.result.ResultScreen
+import com.wsamon.schedulephototoecal.ui.review.ReviewScreen
+
+@Composable
+fun ScheduleNavGraph(viewModel: ScheduleImportViewModel) {
+    val navController = rememberNavController()
+
+    NavHost(navController = navController, startDestination = Routes.CAPTURE) {
+        composable(Routes.CAPTURE) {
+            CaptureScreen(
+                viewModel = viewModel,
+                onImageReady = { navController.navigate(Routes.PROCESSING) },
+            )
+        }
+        composable(Routes.PROCESSING) {
+            ProcessingScreen(
+                viewModel = viewModel,
+                onParsed = {
+                    navController.navigate(Routes.REVIEW) {
+                        popUpTo(Routes.CAPTURE)
+                    }
+                },
+                onRetake = {
+                    navController.popBackStack(Routes.CAPTURE, inclusive = false)
+                },
+            )
+        }
+        composable(Routes.REVIEW) {
+            ReviewScreen(
+                viewModel = viewModel,
+                onImported = {
+                    navController.navigate(Routes.RESULT) {
+                        popUpTo(Routes.CAPTURE)
+                    }
+                },
+            )
+        }
+        composable(Routes.RESULT) {
+            ResultScreen(
+                viewModel = viewModel,
+                onImportAnotherWeek = {
+                    viewModel.startOver()
+                    navController.popBackStack(Routes.CAPTURE, inclusive = false)
+                },
+            )
+        }
+    }
+}
