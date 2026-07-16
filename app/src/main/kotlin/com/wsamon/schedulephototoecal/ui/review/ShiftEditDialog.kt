@@ -26,9 +26,11 @@ fun ShiftEditDialog(
     onSave: (ParsedShift) -> Unit,
 ) {
     var timeRangeText by remember {
+        val startTime = shift.startTime
+        val endTime = shift.endTime
         mutableStateOf(
-            if (shift.startTime != null && shift.endTime != null) {
-                "${shift.startTime.format(EDIT_TIME_FORMATTER)} - ${shift.endTime.format(EDIT_TIME_FORMATTER)}"
+            if (startTime != null && endTime != null) {
+                "${startTime.format(EDIT_TIME_FORMATTER)} - ${endTime.format(EDIT_TIME_FORMATTER)}"
             } else {
                 ""
             },

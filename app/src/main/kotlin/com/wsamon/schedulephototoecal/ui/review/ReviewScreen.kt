@@ -189,10 +189,12 @@ private fun ShiftRow(
         val weekday = shift.date.dayOfWeek.getDisplayName(TextStyle.SHORT, Locale.US)
         "$weekday ${shift.date.format(DATE_FORMATTER)}"
     }
+    val startTime = shift.startTime
+    val endTime = shift.endTime
     val timeLabel = when {
         shift.notScheduled -> "Not Scheduled"
-        shift.startTime != null && shift.endTime != null ->
-            "${shift.startTime.format(TIME_FORMATTER)} - ${shift.endTime.format(TIME_FORMATTER)}"
+        startTime != null && endTime != null ->
+            "${startTime.format(TIME_FORMATTER)} - ${endTime.format(TIME_FORMATTER)}"
         else -> "Time not recognized - please edit"
     }
 
