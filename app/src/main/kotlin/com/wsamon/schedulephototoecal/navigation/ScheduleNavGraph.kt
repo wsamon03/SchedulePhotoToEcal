@@ -64,6 +64,10 @@ fun ScheduleNavGraph(viewModel: ScheduleImportViewModel) {
                     }
                 },
                 onManageCalendars = { navController.navigate(Routes.MANAGE_CALENDARS) },
+                onCancel = {
+                    viewModel.startOver()
+                    navController.popBackStack(Routes.CAPTURE, inclusive = false)
+                },
             )
         }
         composable(Routes.MANAGE_CALENDARS) {

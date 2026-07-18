@@ -15,6 +15,14 @@ private const val HOURS_CROSS_CHECK_TOLERANCE = 0.5
 private const val MAX_PLAUSIBLE_UNPAID_BREAK_HOURS = 2.0
 
 /**
+ * Warning added when [ScheduleParser.parse] falls back to guessing the date. Exposed so callers
+ * (e.g. the Review screen) can filter it out once the guess has already been confirmed elsewhere.
+ */
+const val DATE_GUESSED_WARNING =
+    "We couldn't read this week's date from the photo, so we guessed it from the days shown. " +
+        "Please confirm it's correct."
+
+/**
  * Turns a flat, unordered list of OCR text lines from a Publix weekly schedule
  * screenshot into a structured list of [ParsedShift]s.
  */
@@ -45,8 +53,7 @@ object ScheduleParser {
 
         val warnings = mutableListOf<String>()
         if (dateWasGuessed) {
-            warnings += "We couldn't read this week's date from the photo, so we guessed it from " +
-                "the days shown. Please confirm it's correct."
+            warnings += DATE_GUESSED_WARNING
         }
         if (anchors.size < EXPECTED_ROW_COUNT) {
             warnings += "Only ${anchors.size} of $EXPECTED_ROW_COUNT days were detected in this photo."

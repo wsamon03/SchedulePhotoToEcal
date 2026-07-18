@@ -43,6 +43,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
 import com.wsamon.schedulephototoecal.model.ParsedShift
+import com.wsamon.schedulephototoecal.parser.DATE_GUESSED_WARNING
 import com.wsamon.schedulephototoecal.reconcile.ReconciliationCounts
 import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
 import com.wsamon.schedulephototoecal.ui.theme.Spacing
@@ -61,6 +62,7 @@ fun ReviewScreen(
     viewModel: ScheduleImportViewModel,
     onImported: () -> Unit,
     onManageCalendars: () -> Unit,
+    onCancel: () -> Unit,
 ) {
     val context = LocalContext.current
     var calendarPermissionGranted by remember {
@@ -95,7 +97,16 @@ fun ReviewScreen(
     }
 
     Scaffold(
-        topBar = { TopAppBar(title = { Text("Review your shifts") }) },
+        topBar = {
+            TopAppBar(
+                title = { Text("Review your shifts") },
+                navigationIcon = {
+                    TextButton(onClick = onCancel) {
+                        Text("Cancel")
+                    }
+                },
+            )
+        },
         bottomBar = {
             BottomAppBar {
                 Button(
@@ -119,9 +130,9 @@ fun ReviewScreen(
                 .padding(innerPadding)
                 .padding(horizontal = Spacing.md),
         ) {
-            viewModel.parseResult?.warnings?.forEach { warning ->
-                Text(warning, color = MaterialTheme.colorScheme.error)
-            }
+            viewModel.parseResult?.warnings
+                ?.filterNot { it == DATE_GUESSED_WARNING }
+                ?.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
 
             if (!calendarPermissionGranted) {
                 Spacer(modifier = Modifier.height(Spacing.sm))

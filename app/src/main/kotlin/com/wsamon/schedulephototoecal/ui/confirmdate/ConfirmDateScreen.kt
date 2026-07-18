@@ -64,13 +64,7 @@ fun ConfirmDateScreen(
                 .padding(horizontal = Spacing.md),
         ) {
             Spacer(modifier = Modifier.height(Spacing.sm))
-            val ocrDays = viewModel.parseResult?.ocrDayOfMonthSequence.orEmpty()
-            Text(
-                "We couldn't read this week's date from the photo, so we guessed it from the " +
-                    "days shown" +
-                    (if (ocrDays.isNotEmpty()) " (${ocrDays.joinToString(", ")})" else "") +
-                    ". Please confirm the month and year, or correct them.",
-            )
+            Text("Please confirm or adjust the month and year of the first date shown in the schedule")
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 "Guessed range: ${shifts.first().date} - ${shifts.last().date}",
