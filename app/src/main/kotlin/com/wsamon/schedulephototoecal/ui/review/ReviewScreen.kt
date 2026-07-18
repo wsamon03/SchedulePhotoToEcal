@@ -6,8 +6,10 @@ import android.net.Uri
 import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
@@ -16,6 +18,7 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.material3.BottomAppBar
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
@@ -23,8 +26,11 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
+import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,11 +40,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.unit.dp
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
 import com.wsamon.schedulephototoecal.model.ParsedShift
 import com.wsamon.schedulephototoecal.reconcile.ReconciliationCounts
 import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
+import com.wsamon.schedulephototoecal.ui.theme.Spacing
 import com.wsamon.schedulephototoecal.util.PermissionUtils
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -86,82 +92,94 @@ fun ReviewScreen(
         }
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(16.dp)) {
-        Text("Review your shifts", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(8.dp))
+    Scaffold(
+        topBar = { TopAppBar(title = { Text("Review your shifts") }) },
+        bottomBar = {
+            BottomAppBar {
+                Button(
+                    onClick = {
+                        viewModel.confirmImport()
+                        onImported()
+                    },
+                    enabled = calendarPermissionGranted &&
+                        viewModel.selectedCalendarId != null &&
+                        viewModel.reconciliationPlan.any { it !is ShiftReconciliationAction.NoOp },
+                    modifier = Modifier.fillMaxWidth(),
+                ) {
+                    Text("Add to Calendar")
+                }
+            }
+        },
+    ) { innerPadding ->
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .padding(horizontal = Spacing.md),
+        ) {
+            viewModel.parseResult?.warnings?.forEach { warning ->
+                Text(warning, color = MaterialTheme.colorScheme.error)
+            }
 
-        viewModel.parseResult?.warnings?.forEach { warning ->
-            Text(warning, color = MaterialTheme.colorScheme.error)
-        }
-
-        if (!calendarPermissionGranted) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("Calendar permission is needed to add these shifts to your calendar.")
-            Spacer(modifier = Modifier.height(4.dp))
-            if (permissionDeniedOnce) {
-                Button(onClick = {
-                    val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
-                        data = Uri.fromParts("package", context.packageName, null)
+            if (!calendarPermissionGranted) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text("Calendar permission is needed to add these shifts to your calendar.")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                if (permissionDeniedOnce) {
+                    Button(onClick = {
+                        val intent = Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                            data = Uri.fromParts("package", context.packageName, null)
+                        }
+                        context.startActivity(intent)
+                    }) {
+                        Text("Open App Settings")
                     }
-                    context.startActivity(intent)
-                }) {
-                    Text("Open App Settings")
+                } else {
+                    Button(onClick = { permissionLauncher.launch(CALENDAR_PERMISSIONS) }) {
+                        Text("Grant Calendar Permission")
+                    }
+                }
+            } else if (viewModel.allCalendars.isEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text("No calendars were found on this device.")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Button(onClick = { context.startActivity(Intent(Settings.ACTION_ADD_ACCOUNT)) }) {
+                    Text("Add an Account")
+                }
+            } else if (viewModel.availableCalendars.isEmpty()) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                Text("No calendars are shown in the picker. Manage which calendars appear.")
+                Spacer(modifier = Modifier.height(Spacing.xs))
+                Button(onClick = onManageCalendars) {
+                    Text("Manage Calendars")
                 }
             } else {
-                Button(onClick = { permissionLauncher.launch(CALENDAR_PERMISSIONS) }) {
-                    Text("Grant Calendar Permission")
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                CalendarPicker(viewModel = viewModel, onManageCalendars = onManageCalendars)
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+            HorizontalDivider()
+
+            LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                contentPadding = PaddingValues(vertical = Spacing.sm),
+            ) {
+                items(viewModel.editableShifts, key = { it.id }) { shift ->
+                    ShiftRow(
+                        shift = shift,
+                        onToggleIncluded = { included -> viewModel.setShiftIncluded(shift.id, included) },
+                        onEdit = { editingShift = shift },
+                    )
                 }
             }
-        } else if (viewModel.allCalendars.isEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("No calendars were found on this device.")
-            Spacer(modifier = Modifier.height(4.dp))
-            Button(onClick = { context.startActivity(Intent(Settings.ACTION_ADD_ACCOUNT)) }) {
-                Text("Add an Account")
+
+            if (calendarPermissionGranted && viewModel.selectedCalendarId != null) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                ReconciliationSummary(ReconciliationCounts.of(viewModel.reconciliationPlan))
+                Spacer(modifier = Modifier.height(Spacing.sm))
             }
-        } else if (viewModel.availableCalendars.isEmpty()) {
-            Spacer(modifier = Modifier.height(8.dp))
-            Text("No calendars are shown in the picker. Manage which calendars appear.")
-            Spacer(modifier = Modifier.height(4.dp))
-            Button(onClick = onManageCalendars) {
-                Text("Manage Calendars")
-            }
-        } else {
-            Spacer(modifier = Modifier.height(8.dp))
-            CalendarPicker(viewModel = viewModel, onManageCalendars = onManageCalendars)
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        HorizontalDivider()
-
-        LazyColumn(modifier = Modifier.weight(1f)) {
-            items(viewModel.editableShifts, key = { it.id }) { shift ->
-                ShiftRow(
-                    shift = shift,
-                    onToggleIncluded = { included -> viewModel.setShiftIncluded(shift.id, included) },
-                    onEdit = { editingShift = shift },
-                )
-                HorizontalDivider()
-            }
-        }
-
-        if (calendarPermissionGranted && viewModel.selectedCalendarId != null) {
-            Spacer(modifier = Modifier.height(8.dp))
-            ReconciliationSummary(ReconciliationCounts.of(viewModel.reconciliationPlan))
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-        Button(
-            onClick = {
-                viewModel.confirmImport()
-                onImported()
-            },
-            enabled = calendarPermissionGranted &&
-                viewModel.selectedCalendarId != null &&
-                viewModel.reconciliationPlan.any { it !is ShiftReconciliationAction.NoOp },
-            modifier = Modifier.fillMaxWidth(),
-        ) {
-            Text("Add to Calendar")
         }
     }
 
@@ -250,29 +268,31 @@ private fun ShiftRow(
         else -> "Time not recognized - please edit"
     }
 
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        if (!shift.notScheduled) {
-            Checkbox(checked = shift.included, onCheckedChange = onToggleIncluded)
-        }
-        Column(modifier = Modifier.weight(1f)) {
-            Text(dateLabel, style = MaterialTheme.typography.titleSmall)
-            Text(timeLabel)
+    OutlinedCard(modifier = Modifier.fillMaxWidth()) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
             if (!shift.notScheduled) {
-                val details = listOfNotNull(shift.position, shift.storeNumber?.let { "Store #$it" })
-                    .joinToString(" · ")
-                if (details.isNotBlank()) {
-                    Text(details, style = MaterialTheme.typography.bodySmall)
+                Checkbox(checked = shift.included, onCheckedChange = onToggleIncluded)
+            }
+            Column(modifier = Modifier.weight(1f)) {
+                Text(dateLabel, style = MaterialTheme.typography.titleSmall)
+                Text(timeLabel)
+                if (!shift.notScheduled) {
+                    val details = listOfNotNull(shift.position, shift.storeNumber?.let { "Store #$it" })
+                        .joinToString(" · ")
+                    if (details.isNotBlank()) {
+                        Text(details, style = MaterialTheme.typography.bodySmall)
+                    }
                 }
             }
-        }
-        if (!shift.notScheduled) {
-            TextButton(onClick = onEdit) {
-                Text("Edit")
+            if (!shift.notScheduled) {
+                TextButton(onClick = onEdit) {
+                    Text("Edit")
+                }
             }
         }
     }

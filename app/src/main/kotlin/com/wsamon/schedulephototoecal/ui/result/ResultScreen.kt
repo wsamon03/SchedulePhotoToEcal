@@ -6,6 +6,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -13,8 +14,8 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
+import com.wsamon.schedulephototoecal.ui.theme.Spacing
 
 @Composable
 fun ResultScreen(
@@ -26,12 +27,13 @@ fun ResultScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .safeDrawingPadding()
+            .padding(Spacing.lg),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
         Text("Done!", style = MaterialTheme.typography.headlineSmall)
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(Spacing.md))
 
         if (result == null) {
             Text("No import result available.", textAlign = TextAlign.Center)
@@ -40,19 +42,19 @@ fun ResultScreen(
                 Text("${result.added} shift(s) added.", textAlign = TextAlign.Center)
             }
             if (result.updated > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text("${result.updated} shift(s) updated.", textAlign = TextAlign.Center)
             }
             if (result.removed > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text("${result.removed} shift(s) removed.", textAlign = TextAlign.Center)
             }
             if (result.unchanged > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text("${result.unchanged} shift(s) already up to date.", textAlign = TextAlign.Center)
             }
             if (result.failed > 0) {
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(Spacing.sm))
                 Text(
                     "${result.failed} shift(s) could not be updated.",
                     color = MaterialTheme.colorScheme.error,
@@ -66,7 +68,7 @@ fun ResultScreen(
             }
         }
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(Spacing.xl))
         Button(onClick = onImportAnotherWeek) {
             Text("Import Another Week")
         }

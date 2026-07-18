@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.safeDrawingPadding
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -24,8 +25,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
-import androidx.compose.ui.unit.dp
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
+import com.wsamon.schedulephototoecal.ui.theme.Spacing
 import com.wsamon.schedulephototoecal.util.ImageFileProvider
 import com.wsamon.schedulephototoecal.util.PermissionUtils
 
@@ -72,7 +73,8 @@ fun CaptureScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
+            .safeDrawingPadding()
+            .padding(Spacing.lg),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
@@ -81,12 +83,12 @@ fun CaptureScreen(
             style = MaterialTheme.typography.headlineSmall,
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(Spacing.sm))
         Text(
             text = "Take a photo of the Scheduled tab in the Publix app, or choose a screenshot from your gallery.",
             textAlign = TextAlign.Center,
         )
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(Spacing.xl))
 
         Button(onClick = {
             if (PermissionUtils.isGranted(context, Manifest.permission.CAMERA)) {
@@ -100,7 +102,7 @@ fun CaptureScreen(
             Text("Take Photo")
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(Spacing.sm))
 
         OutlinedButton(onClick = {
             pickImageLauncher.launch(
@@ -111,7 +113,7 @@ fun CaptureScreen(
         }
 
         if (cameraPermissionDenied) {
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(Spacing.md))
             Text(
                 text = "Camera permission was denied. You can still choose a photo from your gallery.",
                 color = MaterialTheme.colorScheme.error,
