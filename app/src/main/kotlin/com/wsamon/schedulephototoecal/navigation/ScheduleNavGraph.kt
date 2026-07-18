@@ -7,6 +7,7 @@ import androidx.navigation.compose.rememberNavController
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
 import com.wsamon.schedulephototoecal.ui.calendars.ManageCalendarsScreen
 import com.wsamon.schedulephototoecal.ui.capture.CaptureScreen
+import com.wsamon.schedulephototoecal.ui.confirmdate.ConfirmDateScreen
 import com.wsamon.schedulephototoecal.ui.processing.ProcessingScreen
 import com.wsamon.schedulephototoecal.ui.result.ResultScreen
 import com.wsamon.schedulephototoecal.ui.review.ReviewScreen
@@ -30,7 +31,26 @@ fun ScheduleNavGraph(viewModel: ScheduleImportViewModel) {
                         popUpTo(Routes.CAPTURE)
                     }
                 },
+                onDateGuessed = {
+                    navController.navigate(Routes.CONFIRM_DATE) {
+                        popUpTo(Routes.CAPTURE)
+                    }
+                },
                 onRetake = {
+                    navController.popBackStack(Routes.CAPTURE, inclusive = false)
+                },
+            )
+        }
+        composable(Routes.CONFIRM_DATE) {
+            ConfirmDateScreen(
+                viewModel = viewModel,
+                onConfirmed = {
+                    navController.navigate(Routes.REVIEW) {
+                        popUpTo(Routes.CAPTURE)
+                    }
+                },
+                onCancel = {
+                    viewModel.startOver()
                     navController.popBackStack(Routes.CAPTURE, inclusive = false)
                 },
             )

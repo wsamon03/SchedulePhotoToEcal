@@ -84,6 +84,19 @@ object ScheduleOcrFixtures {
         listOf(OcrTextLine("Net hours: 36", left = 20, top = 250, right = 300, bottom = 280)) +
             notScheduledRow("Sat", 11, rowIndex = 0)
 
+    /** No header date, and the day-of-month badges skip a day - impossible for any month to reproduce. */
+    fun missingHeaderDateWithImpossibleSequence(): List<OcrTextLine> =
+        listOf(OcrTextLine("Net hours: 36", left = 20, top = 250, right = 300, bottom = 280)) +
+            notScheduledRow("Sat", 11, rowIndex = 0) +
+            notScheduledRow("Mon", 13, rowIndex = 1)
+
+    /** No header date; day-of-month badges 30, 1, 2 straddle a month boundary the guesser must resolve. */
+    fun missingHeaderDateWithRollover(): List<OcrTextLine> =
+        listOf(OcrTextLine("Net hours: 36", left = 20, top = 250, right = 300, bottom = 280)) +
+            scheduledRow("Wed", 30, 0, "9 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8") +
+            scheduledRow("Thu", 1, 1, "9 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8") +
+            scheduledRow("Fri", 2, 2, "9 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8")
+
     fun noisyTimeVariants(): List<OcrTextLine> =
         headerLines("7/11/2026") +
             scheduledRow("Sat", 11, 0, "9a.m.-5p.m.", "Grocery Clerk", "1309", "8") +

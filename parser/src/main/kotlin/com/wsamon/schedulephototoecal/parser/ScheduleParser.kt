@@ -5,6 +5,7 @@ import com.wsamon.schedulephototoecal.model.ParseConfidence
 import com.wsamon.schedulephototoecal.model.ParseResult
 import com.wsamon.schedulephototoecal.model.ParseStatus
 import com.wsamon.schedulephototoecal.model.ParsedShift
+import java.time.Clock
 import java.time.Duration
 import java.time.LocalDate
 import kotlin.math.abs
@@ -19,7 +20,7 @@ private const val MAX_PLAUSIBLE_UNPAID_BREAK_HOURS = 2.0
  */
 object ScheduleParser {
 
-    fun parse(lines: List<OcrTextLine>): ParseResult {
+    fun parse(lines: List<OcrTextLine>, clock: Clock = Clock.systemDefaultZone()): ParseResult {
         val anchors = RowAnchorDetector.detect(lines)
         if (anchors.isEmpty()) {
             return ParseResult(
@@ -29,15 +30,24 @@ object ScheduleParser {
             )
         }
 
+        val ocrDayOfMonthSequence = anchors.map { it.ocrDayOfMonth }
         val headerLines = lines.filter { it.top < anchors.first().top }
         val headerDate = HeaderDateParser.findHeaderDate(headerLines)
+        val dateWasGuessed = headerDate == null
+        val startDate = headerDate
+            ?: ScheduleDateGuesser.guessStartDate(ocrDayOfMonthSequence, LocalDate.now(clock))
             ?: return ParseResult(
                 shifts = emptyList(),
                 status = ParseStatus.NO_HEADER_DATE,
                 warnings = listOf("Could not read the week's date from this photo."),
+                ocrDayOfMonthSequence = ocrDayOfMonthSequence,
             )
 
         val warnings = mutableListOf<String>()
+        if (dateWasGuessed) {
+            warnings += "We couldn't read this week's date from the photo, so we guessed it from " +
+                "the days shown. Please confirm it's correct."
+        }
         if (anchors.size < EXPECTED_ROW_COUNT) {
             warnings += "Only ${anchors.size} of $EXPECTED_ROW_COUNT days were detected in this photo."
         }
@@ -52,7 +62,7 @@ object ScheduleParser {
                 .filter { it.verticalCenter() >= rowTop && it.verticalCenter() < rowBottom }
                 .sortedBy { it.top }
 
-            val date = headerDate.plusDays(index.toLong())
+            val date = startDate.plusDays(index.toLong())
             val dateMismatch = anchor.dayOfWeek != date.dayOfWeek || anchor.ocrDayOfMonth != date.dayOfMonth
             if (dateMismatch) {
                 warnings += "Row for $date did not match its detected weekday/day-of-month badge; please verify."
@@ -63,8 +73,12 @@ object ScheduleParser {
             buildShift(date, fields, dateMismatch, rawRowText)
         }
 
-        val status = if (anchors.size < EXPECTED_ROW_COUNT) ParseStatus.PARTIAL else ParseStatus.SUCCESS
-        return ParseResult(shifts, status, warnings)
+        val status = when {
+            dateWasGuessed -> ParseStatus.DATE_GUESSED
+            anchors.size < EXPECTED_ROW_COUNT -> ParseStatus.PARTIAL
+            else -> ParseStatus.SUCCESS
+        }
+        return ParseResult(shifts, status, warnings, ocrDayOfMonthSequence)
     }
 
     private fun buildShift(

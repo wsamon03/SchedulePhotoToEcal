@@ -3,11 +3,16 @@ package com.wsamon.schedulephototoecal.parser
 import com.google.common.truth.Truth.assertThat
 import com.wsamon.schedulephototoecal.model.ParseConfidence
 import com.wsamon.schedulephototoecal.model.ParseStatus
+import java.time.Clock
 import java.time.LocalDate
 import java.time.LocalTime
+import java.time.ZoneId
 import org.junit.Test
 
 class ScheduleParserTest {
+
+    private fun fixedClock(date: LocalDate): Clock =
+        Clock.fixed(date.atStartOfDay(ZoneId.systemDefault()).toInstant(), ZoneId.systemDefault())
 
     @Test
     fun `full week example parses all 7 rows with high confidence`() {
@@ -86,11 +91,47 @@ class ScheduleParserTest {
     }
 
     @Test
-    fun `missing header date is a hard failure and never fabricates dates`() {
-        val result = ScheduleParser.parse(ScheduleOcrFixtures.missingHeaderDate())
+    fun `missing header date falls back to guessing the month from the day badges`() {
+        val result = ScheduleParser.parse(
+            ScheduleOcrFixtures.missingHeaderDate(),
+            clock = fixedClock(LocalDate.of(2026, 7, 17)),
+        )
+
+        assertThat(result.status).isEqualTo(ParseStatus.DATE_GUESSED)
+        assertThat(result.shifts).hasSize(1)
+        // Day 11 has already passed in July (today is fixed to the 17th), so the nearest
+        // future occurrence of "day 11" is in August, not the current month.
+        assertThat(result.shifts[0].date).isEqualTo(LocalDate.of(2026, 8, 11))
+        assertThat(result.warnings.any { it.contains("guessed", ignoreCase = true) }).isTrue()
+        assertThat(result.ocrDayOfMonthSequence).containsExactly(11)
+    }
+
+    @Test
+    fun `a day-of-month sequence no month can reproduce is still a hard failure`() {
+        val result = ScheduleParser.parse(
+            ScheduleOcrFixtures.missingHeaderDateWithImpossibleSequence(),
+            clock = fixedClock(LocalDate.of(2026, 7, 17)),
+        )
 
         assertThat(result.status).isEqualTo(ParseStatus.NO_HEADER_DATE)
         assertThat(result.shifts).isEmpty()
+    }
+
+    @Test
+    fun `guessed dates correctly roll over a month boundary`() {
+        val result = ScheduleParser.parse(
+            ScheduleOcrFixtures.missingHeaderDateWithRollover(),
+            clock = fixedClock(LocalDate.of(2026, 7, 17)),
+        )
+
+        assertThat(result.status).isEqualTo(ParseStatus.DATE_GUESSED)
+        assertThat(result.shifts.map { it.date }).containsExactly(
+            LocalDate.of(2026, 9, 30),
+            LocalDate.of(2026, 10, 1),
+            LocalDate.of(2026, 10, 2),
+        ).inOrder()
+        assertThat(result.shifts.all { it.confidence == ParseConfidence.HIGH }).isTrue()
+        assertThat(result.warnings.any { it.contains("guessed", ignoreCase = true) }).isTrue()
     }
 
     @Test

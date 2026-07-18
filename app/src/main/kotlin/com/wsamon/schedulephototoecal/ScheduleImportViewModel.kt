@@ -98,6 +98,13 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         editableShifts = editableShifts.map { if (it.id == updated.id) updated else it }
     }
 
+    /** Re-dates every shift by a fixed day offset, used to apply a corrected month/year guess. */
+    fun shiftAllShiftDates(days: Long) {
+        if (days == 0L) return
+        editableShifts = editableShifts.map { it.copy(date = it.date.plusDays(days)) }
+        parseResult = parseResult?.let { pr -> pr.copy(shifts = pr.shifts.map { it.copy(date = it.date.plusDays(days)) }) }
+    }
+
     fun setShiftIncluded(shiftId: String, included: Boolean) {
         editableShifts = editableShifts.map { if (it.id == shiftId) it.copy(included = included) else it }
     }

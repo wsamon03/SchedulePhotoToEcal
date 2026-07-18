@@ -24,12 +24,14 @@ import com.wsamon.schedulephototoecal.ui.theme.Spacing
 fun ProcessingScreen(
     viewModel: ScheduleImportViewModel,
     onParsed: () -> Unit,
+    onDateGuessed: () -> Unit,
     onRetake: () -> Unit,
 ) {
     LaunchedEffect(viewModel.capturedImageUri) {
         viewModel.processImage {
             when (viewModel.parseResult?.status) {
                 ParseStatus.SUCCESS, ParseStatus.PARTIAL -> onParsed()
+                ParseStatus.DATE_GUESSED -> onDateGuessed()
                 else -> Unit
             }
         }
