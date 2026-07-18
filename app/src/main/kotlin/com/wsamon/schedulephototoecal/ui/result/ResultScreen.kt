@@ -36,21 +36,33 @@ fun ResultScreen(
         if (result == null) {
             Text("No import result available.", textAlign = TextAlign.Center)
         } else {
-            Text("${result.added} shift(s) added to your calendar.", textAlign = TextAlign.Center)
-            if (result.skippedAsDuplicate > 0) {
+            if (result.added > 0) {
+                Text("${result.added} shift(s) added.", textAlign = TextAlign.Center)
+            }
+            if (result.updated > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    "${result.skippedAsDuplicate} shift(s) already existed and were skipped.",
-                    textAlign = TextAlign.Center,
-                )
+                Text("${result.updated} shift(s) updated.", textAlign = TextAlign.Center)
+            }
+            if (result.removed > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("${result.removed} shift(s) removed.", textAlign = TextAlign.Center)
+            }
+            if (result.unchanged > 0) {
+                Spacer(modifier = Modifier.height(8.dp))
+                Text("${result.unchanged} shift(s) already up to date.", textAlign = TextAlign.Center)
             }
             if (result.failed > 0) {
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    "${result.failed} shift(s) could not be added.",
+                    "${result.failed} shift(s) could not be updated.",
                     color = MaterialTheme.colorScheme.error,
                     textAlign = TextAlign.Center,
                 )
+            }
+            if (result.added == 0 && result.updated == 0 && result.removed == 0 &&
+                result.unchanged == 0 && result.failed == 0
+            ) {
+                Text("No changes were made.", textAlign = TextAlign.Center)
             }
         }
 

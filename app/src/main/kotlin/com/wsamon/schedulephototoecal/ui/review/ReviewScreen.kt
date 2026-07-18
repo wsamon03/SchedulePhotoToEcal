@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
 import com.wsamon.schedulephototoecal.model.ParsedShift
+import com.wsamon.schedulephototoecal.reconcile.ReconciliationCounts
+import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
 import com.wsamon.schedulephototoecal.util.PermissionUtils
 import java.time.format.DateTimeFormatter
 import java.time.format.TextStyle
@@ -75,6 +77,12 @@ fun ReviewScreen(
             viewModel.refreshCalendars()
         } else {
             permissionLauncher.launch(CALENDAR_PERMISSIONS)
+        }
+    }
+
+    LaunchedEffect(calendarPermissionGranted, viewModel.selectedCalendarId, viewModel.editableShifts) {
+        if (calendarPermissionGranted && viewModel.selectedCalendarId != null) {
+            viewModel.refreshReconciliationPlan()
         }
     }
 
@@ -137,15 +145,20 @@ fun ReviewScreen(
             }
         }
 
+        if (calendarPermissionGranted && viewModel.selectedCalendarId != null) {
+            Spacer(modifier = Modifier.height(8.dp))
+            ReconciliationSummary(ReconciliationCounts.of(viewModel.reconciliationPlan))
+        }
+
         Spacer(modifier = Modifier.height(8.dp))
         Button(
             onClick = {
-                viewModel.addShiftsToCalendar()
+                viewModel.confirmImport()
                 onImported()
             },
             enabled = calendarPermissionGranted &&
                 viewModel.selectedCalendarId != null &&
-                viewModel.editableShifts.any { it.included },
+                viewModel.reconciliationPlan.any { it !is ShiftReconciliationAction.NoOp },
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Add to Calendar")
@@ -161,6 +174,32 @@ fun ReviewScreen(
                 editingShift = null
             },
         )
+    }
+}
+
+@Composable
+private fun ReconciliationSummary(counts: ReconciliationCounts) {
+    if (counts.added == 0 && counts.updated == 0 && counts.removed == 0 && counts.unchanged == 0) {
+        Text("No changes to make.", style = MaterialTheme.typography.bodySmall)
+        return
+    }
+    Column {
+        if (counts.added > 0) {
+            Text("${counts.added} will be added", style = MaterialTheme.typography.bodySmall)
+        }
+        if (counts.updated > 0) {
+            Text("${counts.updated} will be updated", style = MaterialTheme.typography.bodySmall)
+        }
+        if (counts.removed > 0) {
+            Text(
+                "${counts.removed} will be removed",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.error,
+            )
+        }
+        if (counts.unchanged > 0) {
+            Text("${counts.unchanged} unchanged", style = MaterialTheme.typography.bodySmall)
+        }
     }
 }
 

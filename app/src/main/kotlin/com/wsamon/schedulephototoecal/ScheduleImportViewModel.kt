@@ -16,6 +16,7 @@ import com.wsamon.schedulephototoecal.model.ParseResult
 import com.wsamon.schedulephototoecal.model.ParsedShift
 import com.wsamon.schedulephototoecal.ocr.TextRecognitionService
 import com.wsamon.schedulephototoecal.parser.ScheduleParser
+import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.TimeoutCancellationException
 import kotlinx.coroutines.launch
@@ -53,6 +54,10 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
 
     var selectedCalendarId: Long? by mutableStateOf(null)
 
+    /** What re-importing would do, computed read-only ahead of the "Add to Calendar" tap. */
+    var reconciliationPlan: List<ShiftReconciliationAction> by mutableStateOf(emptyList())
+        private set
+
     var importResult: ImportResult? by mutableStateOf(null)
         private set
 
@@ -61,6 +66,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         parseResult = null
         editableShifts = emptyList()
         processingError = null
+        reconciliationPlan = emptyList()
         importResult = null
     }
 
@@ -126,9 +132,18 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         }
     }
 
-    fun addShiftsToCalendar() {
+    fun refreshReconciliationPlan() {
+        val calendarId = selectedCalendarId
+        reconciliationPlan = if (calendarId != null) {
+            calendarRepository.planReconciliation(editableShifts, calendarId)
+        } else {
+            emptyList()
+        }
+    }
+
+    fun confirmImport() {
         val calendarId = selectedCalendarId ?: return
-        importResult = calendarRepository.importShifts(editableShifts, calendarId)
+        importResult = calendarRepository.applyPlan(reconciliationPlan, calendarId)
     }
 
     fun startOver() {
@@ -136,6 +151,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         parseResult = null
         editableShifts = emptyList()
         processingError = null
+        reconciliationPlan = emptyList()
         importResult = null
     }
 }

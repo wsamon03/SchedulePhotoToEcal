@@ -1,9 +1,17 @@
 package com.wsamon.schedulephototoecal.calendar
 
+import android.content.ContentUris
 import android.content.ContentValues
 import android.content.Context
 import android.provider.CalendarContract
 import com.wsamon.schedulephototoecal.model.ParsedShift
+import com.wsamon.schedulephototoecal.reconcile.ExistingEventSnapshot
+import com.wsamon.schedulephototoecal.reconcile.ScheduleReconciliationPlanner
+import com.wsamon.schedulephototoecal.reconcile.ShiftEventContent
+import com.wsamon.schedulephototoecal.reconcile.ShiftEventContentBuilder
+import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
+import java.time.Instant
+import java.time.LocalDate
 import java.time.ZoneId
 
 /**
@@ -66,64 +74,105 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
         )
     }
 
-    override fun importShifts(shifts: List<ParsedShift>, calendarId: Long): ImportResult {
-        var added = 0
-        var skipped = 0
-        var failed = 0
+    override fun planReconciliation(shifts: List<ParsedShift>, calendarId: Long): List<ShiftReconciliationAction> {
         val zoneId = ZoneId.systemDefault()
+        val existingEvents = findOwnedEvents(shifts, calendarId, zoneId)
+        return ScheduleReconciliationPlanner.plan(shifts, existingEvents, zoneId)
+    }
 
-        for (shift in shifts) {
-            if (shift.notScheduled || !shift.included) continue
-            val startTime = shift.startTime ?: continue
-            val endTime = shift.endTime ?: continue
+    override fun applyPlan(plan: List<ShiftReconciliationAction>, calendarId: Long): ImportResult {
+        var added = 0
+        var updated = 0
+        var removed = 0
+        var unchanged = 0
+        var failed = 0
 
-            val startInstant = shift.date.atTime(startTime).atZone(zoneId).toInstant()
-            val endDate = if (endTime < startTime) shift.date.plusDays(1) else shift.date
-            val endInstant = endDate.atTime(endTime).atZone(zoneId).toInstant()
-            val dtStart = startInstant.toEpochMilli()
-            val dtEnd = endInstant.toEpochMilli()
-            val title = buildTitle(shift)
-
-            if (eventAlreadyExists(calendarId, dtStart, dtEnd, title)) {
-                skipped++
-                continue
+        for (action in plan) {
+            try {
+                when (action) {
+                    is ShiftReconciliationAction.Insert -> {
+                        val uri = context.contentResolver.insert(
+                            CalendarContract.Events.CONTENT_URI,
+                            contentValuesFor(action.content, calendarId),
+                        )
+                        if (uri != null) added++ else failed++
+                    }
+                    is ShiftReconciliationAction.Update -> {
+                        val rows = context.contentResolver.update(
+                            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, action.existingEventId),
+                            contentValuesFor(action.content, calendarId = null),
+                            null,
+                            null,
+                        )
+                        if (rows > 0) updated++ else failed++
+                    }
+                    is ShiftReconciliationAction.Delete -> {
+                        val rows = context.contentResolver.delete(
+                            ContentUris.withAppendedId(CalendarContract.Events.CONTENT_URI, action.existingEventId),
+                            null,
+                            null,
+                        )
+                        if (rows > 0) removed++ else failed++
+                    }
+                    is ShiftReconciliationAction.NoOp -> unchanged++
+                }
+            } catch (e: SecurityException) {
+                failed++
+            } catch (e: IllegalArgumentException) {
+                failed++
             }
-
-            val values = ContentValues().apply {
-                put(CalendarContract.Events.CALENDAR_ID, calendarId)
-                put(CalendarContract.Events.TITLE, title)
-                put(
-                    CalendarContract.Events.DESCRIPTION,
-                    "Imported from a Publix schedule photo via Schedule to Calendar",
-                )
-                shift.storeNumber?.let { put(CalendarContract.Events.EVENT_LOCATION, "Store #$it") }
-                put(CalendarContract.Events.DTSTART, dtStart)
-                put(CalendarContract.Events.DTEND, dtEnd)
-                put(CalendarContract.Events.EVENT_TIMEZONE, zoneId.id)
-                put(CalendarContract.Events.HAS_ALARM, 0)
-            }
-
-            val uri = context.contentResolver.insert(CalendarContract.Events.CONTENT_URI, values)
-            if (uri != null) added++ else failed++
         }
 
-        return ImportResult(added = added, skippedAsDuplicate = skipped, failed = failed)
+        return ImportResult(added = added, updated = updated, removed = removed, unchanged = unchanged, failed = failed)
     }
 
-    private fun buildTitle(shift: ParsedShift): String {
-        val position = shift.position ?: "Shift"
-        val store = shift.storeNumber
-        return if (store != null) "$position — Store #$store" else position
-    }
+    private fun contentValuesFor(content: ShiftEventContent, calendarId: Long?): ContentValues =
+        ContentValues().apply {
+            calendarId?.let { put(CalendarContract.Events.CALENDAR_ID, it) }
+            put(CalendarContract.Events.TITLE, content.title)
+            put(CalendarContract.Events.DESCRIPTION, content.description)
+            content.location?.let { put(CalendarContract.Events.EVENT_LOCATION, it) }
+            put(CalendarContract.Events.DTSTART, content.dtStart)
+            put(CalendarContract.Events.DTEND, content.dtEnd)
+            put(CalendarContract.Events.EVENT_TIMEZONE, content.timeZoneId)
+            put(CalendarContract.Events.HAS_ALARM, 0)
+        }
 
-    private fun eventAlreadyExists(calendarId: Long, dtStart: Long, dtEnd: Long, title: String): Boolean {
-        val projection = arrayOf(CalendarContract.Events._ID)
+    /**
+     * Finds events on [calendarId], within the shift list's date range, that carry this app's
+     * fixed ownership description - written verbatim on every event this app has ever created,
+     * so this recognizes events from any prior version too. Keyed by the [LocalDate] read off
+     * each event's DTSTART (never encoded separately - see [ShiftEventContentBuilder]).
+     */
+    private fun findOwnedEvents(
+        shifts: List<ParsedShift>,
+        calendarId: Long,
+        zoneId: ZoneId,
+    ): Map<LocalDate, ExistingEventSnapshot> {
+        if (shifts.isEmpty()) return emptyMap()
+
+        val dates = shifts.map { it.date }
+        val rangeStart = dates.min().atStartOfDay(zoneId).toInstant().toEpochMilli()
+        val rangeEnd = dates.max().plusDays(2).atStartOfDay(zoneId).toInstant().toEpochMilli()
+
+        val projection = arrayOf(
+            CalendarContract.Events._ID,
+            CalendarContract.Events.TITLE,
+            CalendarContract.Events.DTSTART,
+            CalendarContract.Events.DTEND,
+            CalendarContract.Events.EVENT_LOCATION,
+        )
         val selection = "${CalendarContract.Events.CALENDAR_ID} = ? AND " +
-            "${CalendarContract.Events.DTSTART} = ? AND " +
-            "${CalendarContract.Events.DTEND} = ? AND " +
-            "${CalendarContract.Events.TITLE} = ?"
-        val selectionArgs = arrayOf(calendarId.toString(), dtStart.toString(), dtEnd.toString(), title)
+            "${CalendarContract.Events.DTSTART} >= ? AND ${CalendarContract.Events.DTSTART} < ? AND " +
+            "${CalendarContract.Events.DESCRIPTION} LIKE ?"
+        val selectionArgs = arrayOf(
+            calendarId.toString(),
+            rangeStart.toString(),
+            rangeEnd.toString(),
+            "%${ShiftEventContentBuilder.DESCRIPTION}%",
+        )
 
+        val result = mutableMapOf<LocalDate, ExistingEventSnapshot>()
         context.contentResolver.query(
             CalendarContract.Events.CONTENT_URI,
             projection,
@@ -131,8 +180,27 @@ class AndroidCalendarRepository(private val context: Context) : CalendarReposito
             selectionArgs,
             null,
         )?.use { cursor ->
-            return cursor.count > 0
+            val idIndex = cursor.getColumnIndexOrThrow(CalendarContract.Events._ID)
+            val titleIndex = cursor.getColumnIndexOrThrow(CalendarContract.Events.TITLE)
+            val dtStartIndex = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTSTART)
+            val dtEndIndex = cursor.getColumnIndexOrThrow(CalendarContract.Events.DTEND)
+            val locationIndex = cursor.getColumnIndexOrThrow(CalendarContract.Events.EVENT_LOCATION)
+
+            while (cursor.moveToNext()) {
+                val dtStart = cursor.getLong(dtStartIndex)
+                val date = Instant.ofEpochMilli(dtStart).atZone(zoneId).toLocalDate()
+                // If more than one owned event somehow exists for the same date, deterministically
+                // keep the first and leave the rest alone rather than guessing which is current.
+                if (date in result) continue
+                result[date] = ExistingEventSnapshot(
+                    eventId = cursor.getLong(idIndex),
+                    title = cursor.getString(titleIndex) ?: "",
+                    dtStart = dtStart,
+                    dtEnd = cursor.getLong(dtEndIndex),
+                    location = cursor.getString(locationIndex),
+                )
+            }
         }
-        return false
+        return result
     }
 }
