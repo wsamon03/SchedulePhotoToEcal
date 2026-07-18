@@ -14,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -37,6 +38,7 @@ import com.wsamon.schedulephototoecal.ui.theme.Spacing
  * than silently confusing - a calendar that isn't synced to the device at all still won't
  * appear here, since this reads from the same CalendarContract query as the picker.
  */
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ManageCalendarsScreen(
     viewModel: ScheduleImportViewModel,

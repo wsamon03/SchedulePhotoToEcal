@@ -23,6 +23,7 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
@@ -54,6 +55,7 @@ private val CALENDAR_PERMISSIONS = arrayOf(Manifest.permission.READ_CALENDAR, Ma
 private val DATE_FORMATTER = DateTimeFormatter.ofPattern("M/d")
 private val TIME_FORMATTER = DateTimeFormatter.ofPattern("h:mm a")
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun ReviewScreen(
     viewModel: ScheduleImportViewModel,
