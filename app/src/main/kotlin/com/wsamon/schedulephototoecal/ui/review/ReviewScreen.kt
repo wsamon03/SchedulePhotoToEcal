@@ -46,6 +46,7 @@ import com.wsamon.schedulephototoecal.model.ParsedShift
 import com.wsamon.schedulephototoecal.parser.DATE_GUESSED_WARNING
 import com.wsamon.schedulephototoecal.reconcile.ReconciliationCounts
 import com.wsamon.schedulephototoecal.reconcile.ShiftReconciliationAction
+import com.wsamon.schedulephototoecal.ui.diagnostics.DiagnosticLogButton
 import com.wsamon.schedulephototoecal.ui.theme.Spacing
 import com.wsamon.schedulephototoecal.util.PermissionUtils
 import java.time.format.DateTimeFormatter
@@ -133,6 +134,7 @@ fun ReviewScreen(
             viewModel.parseResult?.warnings
                 ?.filterNot { it == DATE_GUESSED_WARNING }
                 ?.forEach { warning -> Text(warning, color = MaterialTheme.colorScheme.error) }
+            DiagnosticLogButton(viewModel)
 
             if (!calendarPermissionGranted) {
                 Spacer(modifier = Modifier.height(Spacing.sm))

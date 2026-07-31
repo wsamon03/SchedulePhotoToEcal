@@ -18,6 +18,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.style.TextAlign
 import com.wsamon.schedulephototoecal.ScheduleImportViewModel
 import com.wsamon.schedulephototoecal.model.ParseStatus
+import com.wsamon.schedulephototoecal.ui.diagnostics.DiagnosticLogButton
 import com.wsamon.schedulephototoecal.ui.theme.Spacing
 
 @Composable
@@ -57,6 +58,7 @@ fun ProcessingScreen(
             Button(onClick = onRetake) {
                 Text("Retake / Choose a Different Photo")
             }
+            DiagnosticLogButton(viewModel)
         } else {
             CircularProgressIndicator()
             Spacer(modifier = Modifier.height(Spacing.md))

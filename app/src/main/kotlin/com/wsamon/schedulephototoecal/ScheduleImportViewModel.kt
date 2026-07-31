@@ -12,7 +12,10 @@ import com.wsamon.schedulephototoecal.calendar.CalendarInfo
 import com.wsamon.schedulephototoecal.calendar.CalendarPreferencesStore
 import com.wsamon.schedulephototoecal.calendar.CalendarRepository
 import com.wsamon.schedulephototoecal.calendar.ImportResult
+import com.wsamon.schedulephototoecal.diagnostics.DiagnosticLogFormatter
+import com.wsamon.schedulephototoecal.model.OcrTextLine
 import com.wsamon.schedulephototoecal.model.ParseResult
+import com.wsamon.schedulephototoecal.model.ParseStatus
 import com.wsamon.schedulephototoecal.model.ParsedShift
 import com.wsamon.schedulephototoecal.ocr.TextRecognitionService
 import com.wsamon.schedulephototoecal.parser.ScheduleParser
@@ -61,6 +64,20 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
     var importResult: ImportResult? by mutableStateOf(null)
         private set
 
+    /**
+     * The raw OCR text from the most recent uncertain parse, held in memory only - never
+     * logged or written to disk on its own. Cleared on a clean SUCCESS and on every new
+     * import, so it never lingers longer than the situation that might need it.
+     */
+    private var lastOcrLines: List<OcrTextLine>? by mutableStateOf(null)
+
+    /** True only when the last parse landed in an uncertain state and there's a log to show. */
+    val diagnosticLogAvailable: Boolean
+        get() = lastOcrLines != null && parseResult?.status != ParseStatus.SUCCESS
+
+    /** Built lazily, only when the user explicitly asks to view or share the diagnostic log. */
+    fun diagnosticLogText(): String = DiagnosticLogFormatter.format(lastOcrLines.orEmpty(), parseResult)
+
     fun startNewImport(uri: Uri) {
         capturedImageUri = uri
         parseResult = null
@@ -68,6 +85,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         processingError = null
         reconciliationPlan = emptyList()
         importResult = null
+        lastOcrLines = null
     }
 
     fun processImage(onDone: () -> Unit) {
@@ -79,6 +97,7 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
                 val result = ScheduleParser.parse(lines)
                 parseResult = result
                 editableShifts = result.shifts
+                lastOcrLines = if (result.status != ParseStatus.SUCCESS) lines else null
                 if (result.shifts.isEmpty()) {
                     processingError = result.warnings.firstOrNull()
                         ?: "We couldn't find a schedule in this photo. Please try another photo."
@@ -160,5 +179,6 @@ class ScheduleImportViewModel(application: Application) : AndroidViewModel(appli
         processingError = null
         reconciliationPlan = emptyList()
         importResult = null
+        lastOcrLines = null
     }
 }
