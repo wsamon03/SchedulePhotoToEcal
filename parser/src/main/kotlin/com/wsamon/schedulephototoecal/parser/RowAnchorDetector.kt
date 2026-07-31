@@ -17,6 +17,18 @@ data class RowAnchor(
 )
 
 /**
+ * [anchors] are the rows a full weekday+day-number badge was found for. [unpairedWeekdayTops]
+ * are the vertical positions of weekday text (e.g. "Thu") that were recognized but never found
+ * a day-number partner nearby - most often because the day-number glyph itself wasn't OCR'd at
+ * all. These still mark a real row boundary even though no anchor could be built there, so a
+ * caller can use them to stop a neighboring row's content from swallowing that row's stray text.
+ */
+data class RowDetectionResult(
+    val anchors: List<RowAnchor>,
+    val unpairedWeekdayTops: List<Int>,
+)
+
+/**
  * Finds the per-row weekday+day-number badges in a flat, unordered list of OCR lines.
  *
  * Row boundaries can't be found via generic vertical-gap clustering because each row is
@@ -46,8 +58,9 @@ object RowAnchorDetector {
     )
     private val DAY_NUMBER_REGEX = Regex("^\\d{1,2}$")
 
-    fun detect(lines: List<OcrTextLine>): List<RowAnchor> {
+    fun detect(lines: List<OcrTextLine>): RowDetectionResult {
         val anchors = mutableListOf<RowAnchor>()
+        val unpairedWeekdayTops = mutableListOf<Int>()
         val usedDayNumberLines = mutableSetOf<OcrTextLine>()
         val dayNumberLines = lines.filter { DAY_NUMBER_REGEX.matches(it.text.trim()) }
 
@@ -73,7 +86,11 @@ object RowAnchorDetector {
                         horizontalOffset <= MAX_PAIRING_HORIZONTAL_OFFSET
                 }
                 .minByOrNull { it.top }
-                ?: continue
+
+            if (partner == null) {
+                unpairedWeekdayTops += line.top
+                continue
+            }
 
             usedDayNumberLines += partner
             anchors += RowAnchor(
@@ -85,6 +102,6 @@ object RowAnchorDetector {
             )
         }
 
-        return anchors.sortedBy { it.top }
+        return RowDetectionResult(anchors.sortedBy { it.top }, unpairedWeekdayTops.sorted())
     }
 }

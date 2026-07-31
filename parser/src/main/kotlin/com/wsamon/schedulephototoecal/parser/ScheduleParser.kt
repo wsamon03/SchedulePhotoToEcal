@@ -29,7 +29,8 @@ const val DATE_GUESSED_WARNING =
 object ScheduleParser {
 
     fun parse(lines: List<OcrTextLine>, clock: Clock = Clock.systemDefaultZone()): ParseResult {
-        val anchors = RowAnchorDetector.detect(lines)
+        val detection = RowAnchorDetector.detect(lines)
+        val anchors = detection.anchors
         if (anchors.isEmpty()) {
             return ParseResult(
                 shifts = emptyList(),
@@ -62,9 +63,15 @@ object ScheduleParser {
         val consumedAnchorLines = anchors.flatMap { it.consumedLines }.toSet()
         val weekDates = (0 until EXPECTED_ROW_COUNT).map { startDate.plusDays(it.toLong()) }
 
-        val shifts = anchors.mapIndexed { index, anchor ->
+        // A row's body ends at the next known row boundary - either a fully-paired anchor, or
+        // a weekday whose day-number glyph just wasn't OCR'd (still a real boundary, just not
+        // a usable anchor). Without the latter, a day missing its number entirely would let its
+        // own stray text (e.g. "Thu" / "Not Scheduled") bleed into the row right before it.
+        val rowBoundaryTops = (anchors.map { it.top } + detection.unpairedWeekdayTops).sorted()
+
+        val shifts = anchors.map { anchor ->
             val rowTop = anchor.top
-            val rowBottom = if (index < anchors.size - 1) anchors[index + 1].top else Int.MAX_VALUE
+            val rowBottom = rowBoundaryTops.firstOrNull { it > rowTop } ?: Int.MAX_VALUE
             val rowBodyLines = lines
                 .filter { it !in consumedAnchorLines }
                 .filter { it.verticalCenter() >= rowTop && it.verticalCenter() < rowBottom }
@@ -73,8 +80,11 @@ object ScheduleParser {
             // Placed by matching this row's own OCR'd day-of-month against the known week,
             // not by its position among detected anchors - so one missing/undetected day
             // elsewhere in the week can never cascade into wrong dates for every row after it.
+            // If the day-of-month itself was misread badly enough that it matches no date in
+            // the week, fall back to matching by weekday instead - still order-independent.
             val date = weekDates.firstOrNull { it.dayOfMonth == anchor.ocrDayOfMonth }
-                ?: startDate.plusDays(index.toLong())
+                ?: weekDates.firstOrNull { it.dayOfWeek == anchor.dayOfWeek }
+                ?: startDate
             val dateMismatch = anchor.dayOfWeek != date.dayOfWeek || anchor.ocrDayOfMonth != date.dayOfMonth
             if (dateMismatch) {
                 warnings += "Row for $date did not match its detected weekday/day-of-month badge; please verify."

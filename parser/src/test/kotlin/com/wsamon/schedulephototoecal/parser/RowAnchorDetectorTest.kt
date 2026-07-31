@@ -8,7 +8,7 @@ class RowAnchorDetectorTest {
 
     @Test
     fun `detects all 7 anchors in the full week example in top-to-bottom order`() {
-        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.fullWeekExample())
+        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.fullWeekExample()).anchors
 
         assertThat(anchors).hasSize(7)
         assertThat(anchors.map { it.dayOfWeek }).containsExactly(
@@ -25,13 +25,13 @@ class RowAnchorDetectorTest {
 
     @Test
     fun `header lines above the first row are never mistaken for anchors`() {
-        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.fullWeekExample())
+        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.fullWeekExample()).anchors
         assertThat(anchors).hasSize(7)
     }
 
     @Test
     fun `pairs weekday and day-number tokens even when split further apart`() {
-        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.splitBadgeTokens())
+        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.splitBadgeTokens()).anchors
 
         assertThat(anchors).hasSize(1)
         assertThat(anchors[0].dayOfWeek).isEqualTo(DayOfWeek.SATURDAY)
@@ -40,13 +40,21 @@ class RowAnchorDetectorTest {
 
     @Test
     fun `partial week detects only the rows present`() {
-        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.partialWeek())
+        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.partialWeek()).anchors
         assertThat(anchors).hasSize(3)
     }
 
     @Test
     fun `non-schedule photo yields zero anchors`() {
-        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.nonScheduleImage())
+        val anchors = RowAnchorDetector.detect(ScheduleOcrFixtures.nonScheduleImage()).anchors
         assertThat(anchors).isEmpty()
+    }
+
+    @Test
+    fun `a weekday whose day-number was never OCR'd is reported as an unpaired boundary, not lost`() {
+        val result = RowAnchorDetector.detect(ScheduleOcrFixtures.weekWithMissingMiddleDay())
+
+        assertThat(result.anchors).hasSize(6)
+        assertThat(result.unpairedWeekdayTops).hasSize(1)
     }
 }

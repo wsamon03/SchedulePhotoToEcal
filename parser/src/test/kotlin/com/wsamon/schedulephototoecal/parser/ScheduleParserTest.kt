@@ -185,7 +185,7 @@ class ScheduleParserTest {
     }
 
     @Test
-    fun `a day missing from the photo entirely does not shift every later day's date`() {
+    fun `a day whose number was never OCR'd does not shift dates or leak into the row before it`() {
         val result = ScheduleParser.parse(ScheduleOcrFixtures.weekWithMissingMiddleDay())
 
         assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
@@ -206,13 +206,17 @@ class ScheduleParserTest {
         assertThat(thursday.notScheduled).isTrue()
         assertThat(thursday.included).isFalse()
 
-        // Wednesday and Friday - the days immediately around the gap - must keep their own
-        // correct dates and high confidence, not cascade into each other's slot.
+        // Wednesday - the row right before the gap - must keep its own real shift, not
+        // absorb Thursday's stray "Thu"/"Not Scheduled" text and get misread as not scheduled.
         val wednesday = result.shifts.single { it.date == LocalDate.of(2026, 8, 5) }
         assertThat(wednesday.notFoundInPhoto).isFalse()
+        assertThat(wednesday.notScheduled).isFalse()
         assertThat(wednesday.startTime).isEqualTo(LocalTime.of(14, 0))
+        assertThat(wednesday.position).isEqualTo("Grocery Clerk")
+        assertThat(wednesday.storeNumber).isEqualTo("1309")
         assertThat(wednesday.confidence).isEqualTo(ParseConfidence.HIGH)
 
+        // Friday - the day right after the gap - must keep its own correct date too.
         val friday = result.shifts.single { it.date == LocalDate.of(2026, 8, 7) }
         assertThat(friday.notFoundInPhoto).isFalse()
         assertThat(friday.startTime).isEqualTo(LocalTime.of(9, 0))

@@ -41,6 +41,18 @@ object ScheduleOcrFixtures {
         return badge(weekday, dayOfMonth, bandTop) + contentLine("Not Scheduled", bandTop + 15)
     }
 
+    /**
+     * A "Not Scheduled" row where the weekday text was recognized but its day-number glyph
+     * was not OCR'd at all (no digit line emitted for it) - the exact failure mode seen in a
+     * real diagnostic log, distinct from the badge going entirely undetected.
+     */
+    private fun notScheduledRowWithUnreadableDayNumber(weekday: String, rowIndex: Int): List<OcrTextLine> {
+        val bandTop = ROW_0_TOP + rowIndex * ROW_HEIGHT
+        return listOf(
+            OcrTextLine(weekday, left = BADGE_LEFT, top = bandTop, right = BADGE_LEFT + 50, bottom = bandTop + 20),
+        ) + contentLine("Not Scheduled", bandTop + 45)
+    }
+
     private fun scheduledRow(
         weekday: String,
         dayOfMonth: Int,
@@ -111,11 +123,13 @@ object ScheduleOcrFixtures {
             scheduledRow("Mon", 13, 2, "5:30 p.m. - 9:30 p.m.", "Liquor Clerk", "1309", "4")
 
     /**
-     * Reproduces a reported bug: a full 7-day week where one day's badge (Thursday) is
-     * entirely missing from the OCR text - not even a "Not Scheduled" line was read for it,
-     * the space it visually occupied is simply blank. Every other day must still land on its
-     * own correct date rather than cascading off by one after the gap. Values mirror a real
-     * schedule screenshot (header date 8/1/2026, Sat 1 through Fri 7).
+     * Reproduces a reported bug, taken from a real diagnostic log: a full 7-day week where
+     * Thursday's weekday text ("Thu") was OCR'd fine, but its day-number glyph ("6") was not
+     * recognized at all - no digit line exists for it anywhere in the OCR output. Every other
+     * day must still land on its own correct date, and Wednesday's real shift (the row right
+     * before the gap) must not absorb Thursday's stray "Thu"/"Not Scheduled" text into its own
+     * row body. Values mirror the real schedule screenshot (header date 8/1/2026, Sat 1 through
+     * Fri 7).
      */
     fun weekWithMissingMiddleDay(): List<OcrTextLine> =
         headerLines("8/1/2026") +
@@ -124,7 +138,7 @@ object ScheduleOcrFixtures {
             scheduledRow("Mon", 3, 2, "5:30 p.m. - 9:30 p.m.", "Liquor Clerk", "1309", "4") +
             scheduledRow("Tue", 4, 3, "8 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8") +
             scheduledRow("Wed", 5, 4, "2 p.m. - 11 p.m.", "Grocery Clerk", "1309", "8") +
-            // Thursday (rowIndex 5) badge goes entirely undetected - no lines at all.
+            notScheduledRowWithUnreadableDayNumber("Thu", rowIndex = 5) +
             scheduledRow("Fri", 7, 6, "9 a.m. - 5 p.m.", "Grocery Clerk", "1309", "7")
 
     fun nonScheduleImage(): List<OcrTextLine> = listOf(
