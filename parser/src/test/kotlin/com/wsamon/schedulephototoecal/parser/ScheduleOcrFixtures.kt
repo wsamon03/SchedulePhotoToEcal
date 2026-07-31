@@ -110,6 +110,23 @@ object ScheduleOcrFixtures {
             scheduledRow("Sun", 12, 1, "4 p.m. - 11 p.m.", "Grocery Clerk", "1861", "6") +
             scheduledRow("Mon", 13, 2, "5:30 p.m. - 9:30 p.m.", "Liquor Clerk", "1309", "4")
 
+    /**
+     * Reproduces a reported bug: a full 7-day week where one day's badge (Thursday) is
+     * entirely missing from the OCR text - not even a "Not Scheduled" line was read for it,
+     * the space it visually occupied is simply blank. Every other day must still land on its
+     * own correct date rather than cascading off by one after the gap. Values mirror a real
+     * schedule screenshot (header date 8/1/2026, Sat 1 through Fri 7).
+     */
+    fun weekWithMissingMiddleDay(): List<OcrTextLine> =
+        headerLines("8/1/2026") +
+            notScheduledRow("Sat", 1, rowIndex = 0) +
+            scheduledRow("Sun", 2, 1, "8 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8") +
+            scheduledRow("Mon", 3, 2, "5:30 p.m. - 9:30 p.m.", "Liquor Clerk", "1309", "4") +
+            scheduledRow("Tue", 4, 3, "8 a.m. - 5 p.m.", "Grocery Clerk", "1309", "8") +
+            scheduledRow("Wed", 5, 4, "2 p.m. - 11 p.m.", "Grocery Clerk", "1309", "8") +
+            // Thursday (rowIndex 5) badge goes entirely undetected - no lines at all.
+            scheduledRow("Fri", 7, 6, "9 a.m. - 5 p.m.", "Grocery Clerk", "1309", "7")
+
     fun nonScheduleImage(): List<OcrTextLine> = listOf(
         OcrTextLine("Welcome to Publix", left = 20, top = 100, right = 400, bottom = 130),
         OcrTextLine("where shopping is a pleasure", left = 20, top = 150, right = 500, bottom = 180),

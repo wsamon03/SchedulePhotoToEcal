@@ -80,14 +80,16 @@ class ScheduleParserTest {
     fun `overnight shift keeps chronological start and end time`() {
         // Fixture is a single isolated row (not a realistic full 7-row photo), so it's
         // correctly reported as PARTIAL - only the parsed time values are under test here.
+        // The other 6 days of the week are padded in as not-found-in-photo placeholders.
         val result = ScheduleParser.parse(ScheduleOcrFixtures.overnightShiftRow())
 
         assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
-        assertThat(result.shifts).hasSize(1)
+        assertThat(result.shifts).hasSize(7)
         val shift = result.shifts[0]
         assertThat(shift.startTime).isEqualTo(LocalTime.of(22, 0))
         assertThat(shift.endTime).isEqualTo(LocalTime.of(6, 0))
         assertThat(shift.confidence).isEqualTo(ParseConfidence.HIGH)
+        assertThat(result.shifts.drop(1).all { it.notFoundInPhoto }).isTrue()
     }
 
     @Test
@@ -98,7 +100,7 @@ class ScheduleParserTest {
         )
 
         assertThat(result.status).isEqualTo(ParseStatus.DATE_GUESSED)
-        assertThat(result.shifts).hasSize(1)
+        assertThat(result.shifts).hasSize(7)
         // Day 11 has already passed in July (today is fixed to the 17th), so the nearest
         // future occurrence of "day 11" is in August, not the current month.
         assertThat(result.shifts[0].date).isEqualTo(LocalDate.of(2026, 8, 11))
@@ -125,12 +127,14 @@ class ScheduleParserTest {
         )
 
         assertThat(result.status).isEqualTo(ParseStatus.DATE_GUESSED)
-        assertThat(result.shifts.map { it.date }).containsExactly(
+        assertThat(result.shifts).hasSize(7)
+        val real = result.shifts.filterNot { it.notFoundInPhoto }
+        assertThat(real.map { it.date }).containsExactly(
             LocalDate.of(2026, 9, 30),
             LocalDate.of(2026, 10, 1),
             LocalDate.of(2026, 10, 2),
         ).inOrder()
-        assertThat(result.shifts.all { it.confidence == ParseConfidence.HIGH }).isTrue()
+        assertThat(real.all { it.confidence == ParseConfidence.HIGH }).isTrue()
         assertThat(result.warnings.any { it.contains("guessed", ignoreCase = true) }).isTrue()
     }
 
@@ -139,7 +143,8 @@ class ScheduleParserTest {
         val result = ScheduleParser.parse(ScheduleOcrFixtures.partialWeek())
 
         assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
-        assertThat(result.shifts).hasSize(3)
+        assertThat(result.shifts).hasSize(7)
+        assertThat(result.shifts.count { it.notFoundInPhoto }).isEqualTo(4)
         assertThat(result.warnings.any { it.contains("Only 3 of 7") }).isTrue()
     }
 
@@ -173,8 +178,44 @@ class ScheduleParserTest {
         val result = ScheduleParser.parse(ScheduleOcrFixtures.splitBadgeTokens())
 
         assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
-        assertThat(result.shifts).hasSize(1)
+        assertThat(result.shifts).hasSize(7)
         assertThat(result.shifts[0].date).isEqualTo(LocalDate.of(2026, 7, 11))
         assertThat(result.shifts[0].notScheduled).isTrue()
+        assertThat(result.shifts[0].notFoundInPhoto).isFalse()
+    }
+
+    @Test
+    fun `a day missing from the photo entirely does not shift every later day's date`() {
+        val result = ScheduleParser.parse(ScheduleOcrFixtures.weekWithMissingMiddleDay())
+
+        assertThat(result.status).isEqualTo(ParseStatus.PARTIAL)
+        assertThat(result.warnings.any { it.contains("Only 6 of 7") }).isTrue()
+        assertThat(result.shifts).hasSize(7)
+        assertThat(result.shifts.map { it.date }).containsExactly(
+            LocalDate.of(2026, 8, 1),
+            LocalDate.of(2026, 8, 2),
+            LocalDate.of(2026, 8, 3),
+            LocalDate.of(2026, 8, 4),
+            LocalDate.of(2026, 8, 5),
+            LocalDate.of(2026, 8, 6),
+            LocalDate.of(2026, 8, 7),
+        ).inOrder()
+
+        val thursday = result.shifts.single { it.date == LocalDate.of(2026, 8, 6) }
+        assertThat(thursday.notFoundInPhoto).isTrue()
+        assertThat(thursday.notScheduled).isTrue()
+        assertThat(thursday.included).isFalse()
+
+        // Wednesday and Friday - the days immediately around the gap - must keep their own
+        // correct dates and high confidence, not cascade into each other's slot.
+        val wednesday = result.shifts.single { it.date == LocalDate.of(2026, 8, 5) }
+        assertThat(wednesday.notFoundInPhoto).isFalse()
+        assertThat(wednesday.startTime).isEqualTo(LocalTime.of(14, 0))
+        assertThat(wednesday.confidence).isEqualTo(ParseConfidence.HIGH)
+
+        val friday = result.shifts.single { it.date == LocalDate.of(2026, 8, 7) }
+        assertThat(friday.notFoundInPhoto).isFalse()
+        assertThat(friday.startTime).isEqualTo(LocalTime.of(9, 0))
+        assertThat(friday.confidence).isEqualTo(ParseConfidence.HIGH)
     }
 }

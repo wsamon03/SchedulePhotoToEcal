@@ -80,6 +80,8 @@ fun ShiftEditDialog(
                             endTime = parsedRange.end,
                             position = position.ifBlank { null },
                             storeNumber = storeNumber.ifBlank { null },
+                            notScheduled = false,
+                            notFoundInPhoto = false,
                             included = true,
                         ),
                     )

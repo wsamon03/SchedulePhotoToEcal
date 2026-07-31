@@ -275,6 +275,7 @@ private fun ShiftRow(
     val startTime = shift.startTime
     val endTime = shift.endTime
     val timeLabel = when {
+        shift.notFoundInPhoto -> "Not found in photo - tap Edit to add"
         shift.notScheduled -> "Not Scheduled"
         startTime != null && endTime != null ->
             "${startTime.format(TIME_FORMATTER)} - ${endTime.format(TIME_FORMATTER)}"
@@ -302,10 +303,8 @@ private fun ShiftRow(
                     }
                 }
             }
-            if (!shift.notScheduled) {
-                TextButton(onClick = onEdit) {
-                    Text("Edit")
-                }
+            TextButton(onClick = onEdit) {
+                Text("Edit")
             }
         }
     }

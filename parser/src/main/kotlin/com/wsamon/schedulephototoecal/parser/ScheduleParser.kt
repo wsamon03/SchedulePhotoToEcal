@@ -60,6 +60,7 @@ object ScheduleParser {
         }
 
         val consumedAnchorLines = anchors.flatMap { it.consumedLines }.toSet()
+        val weekDates = (0 until EXPECTED_ROW_COUNT).map { startDate.plusDays(it.toLong()) }
 
         val shifts = anchors.mapIndexed { index, anchor ->
             val rowTop = anchor.top
@@ -69,7 +70,11 @@ object ScheduleParser {
                 .filter { it.verticalCenter() >= rowTop && it.verticalCenter() < rowBottom }
                 .sortedBy { it.top }
 
-            val date = startDate.plusDays(index.toLong())
+            // Placed by matching this row's own OCR'd day-of-month against the known week,
+            // not by its position among detected anchors - so one missing/undetected day
+            // elsewhere in the week can never cascade into wrong dates for every row after it.
+            val date = weekDates.firstOrNull { it.dayOfMonth == anchor.ocrDayOfMonth }
+                ?: startDate.plusDays(index.toLong())
             val dateMismatch = anchor.dayOfWeek != date.dayOfWeek || anchor.ocrDayOfMonth != date.dayOfMonth
             if (dateMismatch) {
                 warnings += "Row for $date did not match its detected weekday/day-of-month badge; please verify."
@@ -80,13 +85,31 @@ object ScheduleParser {
             buildShift(date, fields, dateMismatch, rawRowText)
         }
 
+        val missingDates = weekDates.filterNot { date -> shifts.any { it.date == date } }
+        val placeholders = missingDates.map { date -> notFoundPlaceholder(date) }
+        val allShifts = (shifts + placeholders).sortedBy { it.date }
+
         val status = when {
             dateWasGuessed -> ParseStatus.DATE_GUESSED
             anchors.size < EXPECTED_ROW_COUNT -> ParseStatus.PARTIAL
             else -> ParseStatus.SUCCESS
         }
-        return ParseResult(shifts, status, warnings, ocrDayOfMonthSequence)
+        return ParseResult(allShifts, status, warnings, ocrDayOfMonthSequence)
     }
+
+    /** A stand-in for a day of the week whose badge wasn't detected in the photo at all. */
+    private fun notFoundPlaceholder(date: LocalDate): ParsedShift = ParsedShift(
+        date = date,
+        notScheduled = true,
+        notFoundInPhoto = true,
+        startTime = null,
+        endTime = null,
+        position = null,
+        storeNumber = null,
+        rawOcrText = "",
+        confidence = ParseConfidence.LOW,
+        included = false,
+    )
 
     private fun buildShift(
         date: LocalDate,
