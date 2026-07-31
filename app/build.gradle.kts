@@ -51,6 +51,18 @@ android {
     buildFeatures {
         compose = true
     }
+
+    packaging {
+        jniLibs {
+            // ML Kit's bundled native libraries aren't yet built with 16 KB-aligned ELF
+            // segments (google/ml-kit issues #975/#987), so the default uncompressed,
+            // page-aligned packaging can fail to install on 16 KB page-size devices
+            // (e.g. Pixel on Android 16). Packaging them compressed instead sidesteps the
+            // alignment requirement entirely, since they're extracted to a normal file at
+            // install time rather than mapped directly from the APK.
+            useLegacyPackaging = true
+        }
+    }
 }
 
 dependencies {
